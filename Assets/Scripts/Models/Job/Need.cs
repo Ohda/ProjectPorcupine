@@ -6,6 +6,7 @@
 // file LICENSE, which is part of this source code package, for details.
 // ====================================================
 #endregion
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
@@ -14,6 +15,8 @@ using MoonSharp.Interpreter;
 [MoonSharpUserData]
 public class Need : IPrototypable
 {
+    public Dictionary<string, float> EmergencyLevels;
+
     private bool highToLow = true;
     private float amount = 0;
 
@@ -25,6 +28,10 @@ public class Need : IPrototypable
         Amount = 0;
         RestoreNeedAmount = 100;
         EventActions = new EventActions();
+        EmergencyLevels = new Dictionary<string, float>();
+        EmergencyLevels.Add(Job.JobPriority.Low.ToString(), 20);
+        EmergencyLevels.Add(Job.JobPriority.Medium.ToString(), 40);
+        EmergencyLevels.Add(Job.JobPriority.High.ToString(), 75);
     }
 
     private Need(Need other)
@@ -44,6 +51,7 @@ public class Need : IPrototypable
         {
             EventActions = other.EventActions.Clone();
         }
+        EmergencyLevels = other.EmergencyLevels;
     }
 
     public Character Character { get; set; }
@@ -120,10 +128,11 @@ public class Need : IPrototypable
             }
             else
             {
-                DefaultEmptyNeed();
+                DefaultCriticalNeed();
             }
         }
-        else if (Amount > 75f)
+
+        if (Amount > EmergencyLevels[Job.JobPriority.High.ToString()] )
         {
             if (EventActions != null && EventActions.HasEvent("OnHighNeed"))
             {
@@ -134,18 +143,18 @@ public class Need : IPrototypable
                 RaiseJobPriority(Job.JobPriority.High);
             }
         }
-        else if (Amount > 50f)
+        else if (Amount > EmergencyLevels[Job.JobPriority.Medium.ToString()])
         {
-            if (EventActions != null && EventActions.HasEvent("OnModerateNeed"))
+            if (EventActions != null && EventActions.HasEvent("OnMediumNeed"))
             {
-                EventActions.Trigger("OnModerateNeed", this, deltaTime);
+                EventActions.Trigger("OnMediumNeed", this, deltaTime);
             }
             else
             {
                 RaiseJobPriority(Job.JobPriority.Medium);
             }
         }
-        else if (Amount > 20f)
+        else if (Amount > EmergencyLevels[Job.JobPriority.Low.ToString()])
         {
             if (EventActions != null && EventActions.HasEvent("OnLowNeed"))
             {
@@ -209,19 +218,28 @@ public class Need : IPrototypable
                     EventActions.ReadXml(subtree);
                     subtree.Close();
                     break;
+                case "Emergencylevel":
+                    XmlReader subtreeEmergencyLevel = reader.ReadSubtree();
+                    subtreeEmergencyLevel.Read();
+                    string level = subtreeEmergencyLevel.GetAttribute("level");
+                    float value = (float)Convert.ToDouble(subtreeEmergencyLevel.GetAttribute("value"));
+                    EmergencyLevels.Add(level, value);
+                    subtreeEmergencyLevel.Close();
+                    break;
             }
         }
     }
 
     public void CompleteJobNorm(Job job)
     {
-        Debug.LogWarning("reset");
         Amount -= RestoreNeedAmount;
+        relatedJob = null;
     }
 
     public void CompleteJobCrit(Job job)
     {
         Amount -= RestoreNeedAmount / 4;
+        relatedJob = null;
     }
 
     public Need Clone()
@@ -234,7 +252,7 @@ public class Need : IPrototypable
         Amount += this.GrowthRate  * deltaTime;
     }
 
-    public void DefaultEmptyNeed()
+    public void DefaultCriticalNeed()
     {
         // TODO: Default for empty need should probably be taking damage, but shouldn't be implemented until characters are 
         //       better able to handle getting their oxygen and maybe have real space suits.
@@ -247,8 +265,23 @@ public class Need : IPrototypable
             Furniture destinationFurniture = World.Current.FurnitureManager.GetClosestFurniture(furniture => furniture.Type == RestoreNeedFurn.Type, Character.CurrTile);
             if (destinationFurniture != null)
             {
+                Action<Job> jobComplete = CompleteJobNorm;
+                if (Amount.AreEqual(100)){
+                    jobComplete = CompleteJobCrit;
+                }
+
                 // TODO check if the furniture is available
-                relatedJob = new Job(destinationFurniture.Tile, destinationFurniture.Type, CompleteJobNorm, RestoreNeedTime, null, priority, false, true, false);
+                relatedJob = new Job(
+                    destinationFurniture.Tile,
+                    destinationFurniture.Type,
+                    jobComplete,
+                    RestoreNeedTime,
+                    null,
+                    priority,
+                    false,
+                    true,
+                    (priority == Job.JobPriority.High) ? true :false 
+                    );
                 Character.jobQueue.Enqueue(relatedJob);
             }
         }
