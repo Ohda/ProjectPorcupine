@@ -9,12 +9,15 @@
 using System.Collections.Generic;
 using System.Xml;
 using MoonSharp.Interpreter;
+using System.Linq;
 
 [MoonSharpUserData]
 public class Need : IPrototypable
 {
     private bool highToLow = true;
     private float amount = 0;
+
+    private Job relatedJob;
 
     // Use this for initialization
     public Need()
@@ -111,34 +114,42 @@ public class Need : IPrototypable
 
         if (Amount.AreEqual(100))
         {
-            if (EventActions != null && EventActions.HasEvent("OnEmptyNeed"))
+            if (EventActions != null && EventActions.HasEvent("OnCriticalNeed"))
             {
-                EventActions.Trigger("OnEmptyNeed", this, deltaTime);
+                EventActions.Trigger("OnCriticalNeed", this, deltaTime);
             }
             else
             {
                 DefaultEmptyNeed();
             }
-        } 
-        else if (Amount > 90f)
-        {
-            if (EventActions != null)
-            {
-                EventActions.Trigger("OnSevereNeed", this, deltaTime);
-            }
         }
         else if (Amount > 75f)
         {
-            if (EventActions != null)
+            if (EventActions != null && EventActions.HasEvent("OnHighNeed"))
             {
-                EventActions.Trigger("OnCriticalNeed", this, deltaTime);
+                EventActions.Trigger("OnHighNeed", this, deltaTime);
+            } else
+            {
+                raiseJobPriority(Job.JobPriority.High);
             }
         }
         else if (Amount > 50f)
         {
-            if (EventActions != null)
+            if (EventActions != null && EventActions.HasEvent("OnModerateNeed"))
             {
                 EventActions.Trigger("OnModerateNeed", this, deltaTime);
+            } else
+            {
+                raiseJobPriority(Job.JobPriority.Medium);
+            }
+        }
+        else if (Amount > 20f)
+        {
+            if (EventActions != null && EventActions.HasEvent("OnLowNeed"))
+            {
+                EventActions.Trigger("OnLowNeed", this, deltaTime);
+            } else {
+                raiseJobPriority(Job.JobPriority.Low);
             }
         }
     }
@@ -200,6 +211,7 @@ public class Need : IPrototypable
 
     public void CompleteJobNorm(Job job)
     {
+        Debug.LogWarning("reset");
         Amount -= RestoreNeedAmount;
     }
 
@@ -211,6 +223,23 @@ public class Need : IPrototypable
     public Need Clone()
     {
         return new Need(this);
+    }
+
+    private void raiseJobPriority(Job.JobPriority priority)
+    {
+        if(relatedJob == null)
+        {
+            Furniture destinationFurniture = World.Current.FurnitureManager.GetClosestFurniture(furniture => furniture.Type == RestoreNeedFurn.Type, Character.CurrTile);
+            if (destinationFurniture != null)
+            {
+                //TODO check if the furniture is available
+                relatedJob = new Job(destinationFurniture.Tile, destinationFurniture.Type, CompleteJobNorm, RestoreNeedTime, null, priority, false, true, false);
+                Character.jobQueue.Enqueue(relatedJob);
+            }
+        } else if (relatedJob.Priority != priority)
+        {
+            relatedJob.Priority = priority;
+        }
     }
 
     public void DefaultNeedDecay(float deltaTime)

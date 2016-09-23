@@ -51,6 +51,7 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
     public Facing CharFacing;
 
     private Need[] needs;
+    public JobQueue jobQueue;
     private Dictionary<string, Stat> stats;
 
     /// Destination tile of the character.
@@ -83,7 +84,6 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
     /// Use only for serialization
     public Character()
     {
-        needs = new Need[PrototypeManager.Need.Count];
         InitializeCharacterValues();
     }
 
@@ -343,9 +343,9 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
     /// Runs every "frame" while the simulation is not paused
     public void Update(float deltaTime)
     {
-        Update_DoJob(deltaTime);
-
         Update_Needs(deltaTime);
+
+        Update_DoJob(deltaTime);
 
         Update_DoMovement(deltaTime);
 
@@ -354,7 +354,7 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
         if (OnCharacterChanged != null)
         {
             OnCharacterChanged(this);
-        }        
+        }
     }
 
     #region IXmlSerializable implementation
@@ -538,6 +538,9 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
 
     private void InitializeCharacterValues()
     {
+        needs = new Need[PrototypeManager.Need.Count];
+        jobQueue = new JobQueue();
+
         LoadNeeds();
         LoadStats();
     }
@@ -573,40 +576,26 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
 
     private void GetNewJob()
     {
-        float needPercent = 0;
-        Need need = null;
-        foreach (Need n in needs)
+        if (!jobQueue.IsEmpty() && !World.Current.jobQueue.IsEmpty())
         {
-            if (n.Amount > needPercent)
-            {
-                need = n;
-                needPercent = n.Amount;
-            }
+            Job.JobPriority needPriority = jobQueue.GetPriority();
+            Job.JobPriority worldPriority = World.Current.jobQueue.GetPriority();
+            MyJob = (needPriority >= worldPriority) ? jobQueue.Dequeue() : World.Current.jobQueue.Dequeue();
         }
-
-        if (needPercent > 50 && needPercent < 100 && need.RestoreNeedFurn != null)
+        else if (MyJob == null && !jobQueue.IsEmpty())
         {
-            if (World.Current.FurnitureManager.CountWithType(need.RestoreNeedFurn.Type) > 0)
-            {
-                MyJob = new Job(null, need.RestoreNeedFurn.Type, need.CompleteJobNorm, need.RestoreNeedTime, null, Job.JobPriority.High, false, true, false);
-            }
+            MyJob = jobQueue.Dequeue();
         }
-
-        if (needPercent.AreEqual(100.0f) && need != null && need.CompleteOnFail)
-        {
-            MyJob = new Job(CurrTile, null, need.CompleteJobCrit, need.RestoreNeedTime * 10, null, Job.JobPriority.High, false, true, true);
-        }
-
-        // Get the first job on the queue.
-        if (MyJob == null)
+        else if (MyJob == null && !World.Current.jobQueue.IsEmpty())
         {
             MyJob = World.Current.jobQueue.Dequeue();
+        }
 
-            // Check if we got a job from the queue.
-            if (MyJob == null)
-            {
-                Debug.ULogChannel("Character", name + " did not find a job.");
-                MyJob = new Job(
+        // Check if we got a job from the queue.
+        if (MyJob == null)
+        {
+            Debug.ULogChannel("Character", name + " did not find a job.");
+            MyJob = new Job(
                     CurrTile,
                     "Waiting",
                     null,
@@ -615,19 +604,17 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
                     Job.JobPriority.Low,
                     false);
                 MyJob.JobDescription = "job_waiting_desc";
+         } else
+         {
+            if (MyJob.tile == null)
+            {
+                Debug.ULogChannel("Character", name + " found a job.");
             }
             else
             {
-                if (MyJob.tile == null)
-                {
-                    Debug.ULogChannel("Character", name + " found a job.");
-                }
-                else
-                {
-                    Debug.ULogChannel("Character", name + " found a job at x " + MyJob.tile.X + " y " + MyJob.tile.Y + ".");
-                }
+                Debug.ULogChannel("Character", name + " found a job at x " + MyJob.tile.X + " y " + MyJob.tile.Y + ".");
             }
-        }
+         }
 
         // Get our destination from the job.
         DestTile = MyJob.tile;
@@ -650,15 +637,8 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
         // requiring materials), but we still need to verify that the
         // final location can be reached.
         Profiler.BeginSample("PathGeneration");
-        if (MyJob.IsNeed)
-        {
-            // This will calculate a path from current tile to destination tile.
-            pathAStar = new Path_AStar(World.Current, CurrTile, DestTile, need.RestoreNeedFurn.Type, 0, false, true);
-        }
-        else
-        {
-            pathAStar = new Path_AStar(World.Current, CurrTile, DestTile, null, 0, false, false, MyJob.adjacent);
-        }
+
+        pathAStar = new Path_AStar(World.Current, CurrTile, DestTile, null, 0, false, MyJob.IsNeed, MyJob.adjacent);
 
         Profiler.EndSample();
 

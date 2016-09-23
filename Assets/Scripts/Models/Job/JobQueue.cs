@@ -82,4 +82,10 @@ public class JobQueue
             yield return job;
         }
     }
+
+    public Job.JobPriority GetPriority()
+    {
+        Job job = jobQueue.Values[0];
+        return job.Priority;
+    }
 }

@@ -185,11 +185,7 @@ public class Job : ISelectable, IPrototypable
         protected set;
     }
 
-    public JobPriority Priority
-    {
-        get;
-        protected set;
-    }
+    public JobPriority Priority { get; set; }
 
     public bool IsSelected
     {

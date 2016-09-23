@@ -214,6 +214,27 @@ public class FurnitureManager : IEnumerable<Furniture>
         }
     }
 
+   public Furniture GetClosestFurniture(Func<Furniture, bool> filterFunc, Tile tile)
+   {
+        List<Furniture> furnitures = Find(filterFunc);
+
+        int bestLength = int.MaxValue;
+        Furniture destFurniture = null;
+
+        foreach (Furniture furniture in furnitures)
+        {
+            Path_AStar path = new Path_AStar(World.Current, tile, furniture.Tile);
+            if (path.Length() >= bestLength)
+            {
+                continue;
+            }
+            bestLength = path.Length();
+            destFurniture = furniture;
+        }
+
+        return destFurniture;
+    }
+
     /// <summary>
     /// Notify world that the camera moved, so we can check which entities are visible to the camera.
     /// The invisible enities can be updated less frequent for better performance.
