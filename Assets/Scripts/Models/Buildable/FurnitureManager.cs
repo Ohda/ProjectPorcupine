@@ -228,6 +228,7 @@ public class FurnitureManager : IEnumerable<Furniture>
             {
                 continue;
             }
+
             bestLength = path.Length();
             destFurniture = furniture;
         }

@@ -49,9 +49,9 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
 
     /// What direction our character is looking.
     public Facing CharFacing;
+    public JobQueue jobQueue;
 
     private Need[] needs;
-    public JobQueue jobQueue;
     private Dictionary<string, Stat> stats;
 
     /// Destination tile of the character.
@@ -604,8 +604,9 @@ public class Character : IXmlSerializable, ISelectable, IContextActionProvider
                     Job.JobPriority.Low,
                     false);
                 MyJob.JobDescription = "job_waiting_desc";
-         } else
-         {
+        }
+        else
+        {
             if (MyJob.tile == null)
             {
                 Debug.ULogChannel("Character", name + " found a job.");

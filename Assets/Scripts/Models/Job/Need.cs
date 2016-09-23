@@ -7,9 +7,9 @@
 // ====================================================
 #endregion
 using System.Collections.Generic;
+using System.Linq;
 using System.Xml;
 using MoonSharp.Interpreter;
-using System.Linq;
 
 [MoonSharpUserData]
 public class Need : IPrototypable
@@ -128,9 +128,10 @@ public class Need : IPrototypable
             if (EventActions != null && EventActions.HasEvent("OnHighNeed"))
             {
                 EventActions.Trigger("OnHighNeed", this, deltaTime);
-            } else
+            }
+            else
             {
-                raiseJobPriority(Job.JobPriority.High);
+                RaiseJobPriority(Job.JobPriority.High);
             }
         }
         else if (Amount > 50f)
@@ -138,9 +139,10 @@ public class Need : IPrototypable
             if (EventActions != null && EventActions.HasEvent("OnModerateNeed"))
             {
                 EventActions.Trigger("OnModerateNeed", this, deltaTime);
-            } else
+            }
+            else
             {
-                raiseJobPriority(Job.JobPriority.Medium);
+                RaiseJobPriority(Job.JobPriority.Medium);
             }
         }
         else if (Amount > 20f)
@@ -148,8 +150,10 @@ public class Need : IPrototypable
             if (EventActions != null && EventActions.HasEvent("OnLowNeed"))
             {
                 EventActions.Trigger("OnLowNeed", this, deltaTime);
-            } else {
-                raiseJobPriority(Job.JobPriority.Low);
+            }
+            else
+            {
+                RaiseJobPriority(Job.JobPriority.Low);
             }
         }
     }
@@ -225,23 +229,6 @@ public class Need : IPrototypable
         return new Need(this);
     }
 
-    private void raiseJobPriority(Job.JobPriority priority)
-    {
-        if(relatedJob == null)
-        {
-            Furniture destinationFurniture = World.Current.FurnitureManager.GetClosestFurniture(furniture => furniture.Type == RestoreNeedFurn.Type, Character.CurrTile);
-            if (destinationFurniture != null)
-            {
-                //TODO check if the furniture is available
-                relatedJob = new Job(destinationFurniture.Tile, destinationFurniture.Type, CompleteJobNorm, RestoreNeedTime, null, priority, false, true, false);
-                Character.jobQueue.Enqueue(relatedJob);
-            }
-        } else if (relatedJob.Priority != priority)
-        {
-            relatedJob.Priority = priority;
-        }
-    }
-
     public void DefaultNeedDecay(float deltaTime)
     {
         Amount += this.GrowthRate  * deltaTime;
@@ -251,5 +238,23 @@ public class Need : IPrototypable
     {
         // TODO: Default for empty need should probably be taking damage, but shouldn't be implemented until characters are 
         //       better able to handle getting their oxygen and maybe have real space suits.
+    }
+
+    private void RaiseJobPriority(Job.JobPriority priority)
+    {
+        if (relatedJob == null)
+        {
+            Furniture destinationFurniture = World.Current.FurnitureManager.GetClosestFurniture(furniture => furniture.Type == RestoreNeedFurn.Type, Character.CurrTile);
+            if (destinationFurniture != null)
+            {
+                // TODO check if the furniture is available
+                relatedJob = new Job(destinationFurniture.Tile, destinationFurniture.Type, CompleteJobNorm, RestoreNeedTime, null, priority, false, true, false);
+                Character.jobQueue.Enqueue(relatedJob);
+            }
+        }
+        else if (relatedJob.Priority != priority)
+        {
+            relatedJob.Priority = priority;
+        }
     }
 }
