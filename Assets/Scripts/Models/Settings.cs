@@ -197,7 +197,7 @@ public static class Settings
         // else we should already be scheduled to save the settings so dont bother Scheduling it again 
     }
 
-    private static void SaveSettings()
+    public static void SaveSettings()
     {
         // if we do not have any unsaved settings then return
         if (Settings.unsavedSettings == false)
